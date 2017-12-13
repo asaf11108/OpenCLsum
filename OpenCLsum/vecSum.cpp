@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <vector>
+
+#define __CL_ENABLE_EXCEPTIONS
 #include <CL/opencl.h>
 //#include "C:\Program Files (x86)\AMD APP SDK\3.0\include\CL\opencl.h"
 
@@ -33,12 +36,11 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	int n = 100000;
+	const int n = 10000;
 
 	// Host input vectors
-	float *h_a;
 	// Host output vector
-	double *h_sum;
+	std::vector<float> h_sum(1);
 
 	// Device input buffers
 	cl_mem d_a;
@@ -52,13 +54,8 @@ int main(int argc, char* argv[])
 	cl_program program;               // program
 	cl_kernel kernel;                 // kernel
 
-	// Size, in bytes, of each vector
-	size_t bytes = n*sizeof(float);
-	size_t bytes_out = 1*sizeof(double);
-
 	// Allocate memory for each vector on host
-	h_a = (float*)malloc(bytes);
-	h_sum = (double*)malloc(bytes_out);
+	std::vector<float> h_a(n);
 
 	// Initialize vectors on host
 	int i;
@@ -71,16 +68,16 @@ int main(int argc, char* argv[])
 	cl_int err;
 
 	// Number of work items in each local work group
-	localSize = 1;//64;
+	localSize = 64;
 
 	// Number of total work items - localSize must be devisor
-	globalSize = 1;//ceil(n / (float)localSize)*localSize;
+	globalSize = ceil(n / (float)localSize)*localSize;
 
 	// Bind to platform
 	err = clGetPlatformIDs(1, &cpPlatform, NULL);
 
 	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &device_id, NULL);
 
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -101,31 +98,29 @@ int main(int argc, char* argv[])
 	kernel = clCreateKernel(program, "sum", &err);
 
 	// Create the input and output arrays in device memory for our calculation
-	d_a = clCreateBuffer(context, CL_MEM_READ_ONLY, bytes, NULL, NULL);
-	d_sum = clCreateBuffer(context, CL_MEM_WRITE_ONLY, bytes_out, NULL, NULL);
+	d_a = clCreateBuffer(context, CL_MEM_READ_ONLY, h_a.size()*sizeof(float), NULL, NULL);
+	d_sum = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_sum.size()*sizeof(float), NULL, NULL);
 
 	// Write our data set into the input array in device memory
-	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0,
-		bytes, h_a, 0, NULL, NULL);
+	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a.size()*sizeof(float), h_a.data(), 0, NULL, NULL);
 
 	// Set the arguments to our compute kernel
 	err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_a);
-	err |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &d_sum);
-	err |= clSetKernelArg(kernel, 3, sizeof(unsigned int), &n);
+	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
+	err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
 
 	// Execute the kernel over the entire range of the data set  
-	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize,
-		0, NULL, NULL);
+	err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 
 	// Wait for the command queue to get serviced before reading back results
-	clFinish(queue);
+	err |= clFinish(queue);
 
 	// Read the results from the device
 	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0,
-		bytes_out, h_sum, 0, NULL, NULL);
+		h_sum.size()*sizeof(float), h_sum.data(), 0, NULL, NULL);
 
 	//Sum up vector c and print result divided by n, this should equal 1 within error
-	printf("final result: %f\n", h_sum[0] / n);
+	std::cout << "final result: " << h_sum[0] << std::endl;
 
 	// release OpenCL resources
 	clReleaseMemObject(d_a);
@@ -136,15 +131,13 @@ int main(int argc, char* argv[])
 	clReleaseContext(context);
 
 	//release host memory
-	free(h_a);
-	free(h_sum);
 
 	double sum = 0;
 	for (int i = 0; i<n; i++){
 		sum += h_a[i];
 	}
 
-	cout << sum << endl;
+	cout << "host:" << sum << endl;
 
 	system("pause");
 	//
