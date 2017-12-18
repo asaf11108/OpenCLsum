@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <vector>
+#include <ctime>
 
 #define __CL_ENABLE_EXCEPTIONS
 #include <CL/opencl.h>
@@ -36,7 +37,7 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 10000;
+	const int n = 1000000;
 
 	// Host input vectors
 	// Host output vector
@@ -77,7 +78,7 @@ int main(int argc, char* argv[])
 	err = clGetPlatformIDs(1, &cpPlatform, NULL);
 
 	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &device_id, NULL);
+	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
 
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -109,12 +110,13 @@ int main(int argc, char* argv[])
 	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
 	err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
 
+	const clock_t begin_time = clock();
 	// Execute the kernel over the entire range of the data set  
 	err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 
 	// Wait for the command queue to get serviced before reading back results
 	err |= clFinish(queue);
-
+	cout << "diff: " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl;
 	// Read the results from the device
 	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0,
 		h_sum.size()*sizeof(float), h_sum.data(), 0, NULL, NULL);
@@ -138,7 +140,7 @@ int main(int argc, char* argv[])
 	}
 
 	cout << "host:" << sum << endl;
-
+	
 	system("pause");
 	//
 	return 0;
