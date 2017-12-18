@@ -37,7 +37,7 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 1000000;
+	const int n = 1000;
 
 	// Host input vectors
 	// Host output vector
