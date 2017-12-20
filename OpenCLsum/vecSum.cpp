@@ -37,11 +37,10 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 1000;
+	const int n = 1000000;
 
 	// Host input vectors
 	// Host output vector
-	std::vector<float> h_sum(1);
 
 	// Device input buffers
 	cl_mem d_a;
@@ -56,6 +55,7 @@ int main(int argc, char* argv[])
 	cl_kernel kernel;                 // kernel
 
 	// Allocate memory for each vector on host
+	std::vector<float> h_sum(1);
 	std::vector<float> h_a(n);
 
 	// Initialize vectors on host
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 	cl_int err;
 
 	// Number of work items in each local work group
-	localSize = 64;
+	localSize = 128;
 
 	// Number of total work items - localSize must be devisor
 	globalSize = ceil(n / (float)localSize)*localSize;
@@ -100,8 +100,8 @@ int main(int argc, char* argv[])
 
 	// Create the input and output arrays in device memory for our calculation
 	d_a = clCreateBuffer(context, CL_MEM_READ_ONLY, h_a.size()*sizeof(float), NULL, NULL);
-	d_sum = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_sum.size()*sizeof(float), NULL, NULL);
-
+	d_sum = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_sum.size()*sizeof(float)*ceil(n / localSize), NULL, NULL);
+	
 	// Write our data set into the input array in device memory
 	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a.size()*sizeof(float), h_a.data(), 0, NULL, NULL);
 
@@ -110,16 +110,28 @@ int main(int argc, char* argv[])
 	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
 	err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
 
-	const clock_t begin_time = clock();
 	// Execute the kernel over the entire range of the data set  
 	err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 
 	// Wait for the command queue to get serviced before reading back results
 	err |= clFinish(queue);
-	cout << "diff: " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl;
+
+	for (int i = n; i > 1; i = ceil(i / localSize)) {
+		//for (int i = 0; i < 1; i++) {
+
+			// Set the arguments to our compute kernel
+		err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_sum);
+		err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
+		err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
+
+		// Execute the kernel over the entire range of the data set  
+		err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+		// Wait for the command queue to get serviced before reading back results
+		err |= clFinish(queue);
+	}
+	
 	// Read the results from the device
-	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0,
-		h_sum.size()*sizeof(float), h_sum.data(), 0, NULL, NULL);
+	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0, h_sum.size()*sizeof(float), h_sum.data(), 0, NULL, NULL);
 
 	//Sum up vector c and print result divided by n, this should equal 1 within error
 	std::cout << "final result: " << h_sum[0] << std::endl;
