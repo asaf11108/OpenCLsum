@@ -39,9 +39,6 @@ int main(int argc, char* argv[])
 	
 	const int n = 1000000;
 
-	// Host input vectors
-	// Host output vector
-
 	// Device input buffers
 	cl_mem d_a;
 	// Device output buffer
@@ -69,7 +66,7 @@ int main(int argc, char* argv[])
 	cl_int err;
 
 	// Number of work items in each local work group
-	localSize = 128;
+	localSize = 64;
 
 	// Number of total work items - localSize must be devisor
 	globalSize = ceil(n / (float)localSize)*localSize;
@@ -78,7 +75,7 @@ int main(int argc, char* argv[])
 	err = clGetPlatformIDs(1, &cpPlatform, NULL);
 
 	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &device_id, NULL);
 
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -99,14 +96,14 @@ int main(int argc, char* argv[])
 	kernel = clCreateKernel(program, "sum", &err);
 
 	// Create the input and output arrays in device memory for our calculation
-	d_a = clCreateBuffer(context, CL_MEM_READ_ONLY, h_a.size()*sizeof(float), NULL, NULL);
+	d_a = clCreateBuffer(context, CL_MEM_READ_WRITE, h_a.size()*sizeof(float), NULL, NULL);
 	d_sum = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_sum.size()*sizeof(float)*ceil(n / localSize), NULL, NULL);
 	
 	// Write our data set into the input array in device memory
 	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a.size()*sizeof(float), h_a.data(), 0, NULL, NULL);
 
 	// Set the arguments to our compute kernel
-	err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_a);
+	err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_a);
 	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
 	err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
 
@@ -114,21 +111,22 @@ int main(int argc, char* argv[])
 	err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 
 	// Wait for the command queue to get serviced before reading back results
-	err |= clFinish(queue);
+	//err |= clFinish(queue);
 
 	for (int i = n; i > 1; i = ceil(i / localSize)) {
 		//for (int i = 0; i < 1; i++) {
 
 			// Set the arguments to our compute kernel
-		err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_sum);
+		err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_sum);
 		err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
-		err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
+		err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &i);
 
 		// Execute the kernel over the entire range of the data set  
 		err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 		// Wait for the command queue to get serviced before reading back results
-		err |= clFinish(queue);
 	}
+	
+	err |= clFinish(queue);
 	
 	// Read the results from the device
 	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0, h_sum.size()*sizeof(float), h_sum.data(), 0, NULL, NULL);

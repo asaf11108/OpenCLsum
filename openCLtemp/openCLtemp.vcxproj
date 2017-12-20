@@ -31,6 +31,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{da4cc028-b93a-4d49-b5a3-585be377f002}</ProjectGuid>
     <RootNamespace>openCLtemp</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -180,6 +181,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <Intel_OpenCL_Build_Rules Include="device.cl" />
+    <Intel_OpenCL_Build_Rules Include="sum.cl" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="host.cpp" />
