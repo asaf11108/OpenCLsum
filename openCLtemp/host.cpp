@@ -56,12 +56,13 @@ int main(int argc, char* argv[])
 	std::vector<float> h_a(n);
 
 	// Initialize vectors on host
-	h_sum[0] = 1;
+	h_sum[0] = 3;
 	int i;
 	for (i = 0; i < n; i++)
 	{
 		h_a[i] = static_cast<float>(i);
 	}
+	h_a[0] = 1;
 
 	size_t globalSize, localSize;
 	cl_int err;
@@ -114,8 +115,8 @@ int main(int argc, char* argv[])
 
 	// Wait for the command queue to get serviced before reading back results
 	//err |= clFinish(queue);
-
-	err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_a);
+	//n = 500;
+	err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_sum);
 	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
 	err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
 

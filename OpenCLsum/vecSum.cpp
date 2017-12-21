@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -37,7 +39,7 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 1000000;
+	const int n = 1000;
 
 	// Device input buffers
 	cl_mem d_a;
@@ -56,8 +58,7 @@ int main(int argc, char* argv[])
 	std::vector<float> h_a(n);
 
 	// Initialize vectors on host
-	int i;
-	for (i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 	{
 		h_a[i] = static_cast<float>(i);
 	}
@@ -69,7 +70,11 @@ int main(int argc, char* argv[])
 	localSize = 64;
 
 	// Number of total work items - localSize must be devisor
-	globalSize = ceil(n / (float)localSize)*localSize;
+	globalSize = static_cast<size_t>(ceil(n / (float)localSize)*localSize);
+
+	//calc input and output array sizes
+	size_t h_a_bytes = h_a.size() * sizeof(float);
+	size_t h_sum_bytes = h_sum.size() * sizeof(float)*ceil(n / (float) localSize);
 
 	// Bind to platform
 	err = clGetPlatformIDs(1, &cpPlatform, NULL);
@@ -96,43 +101,36 @@ int main(int argc, char* argv[])
 	kernel = clCreateKernel(program, "sum", &err);
 
 	// Create the input and output arrays in device memory for our calculation
-	d_a = clCreateBuffer(context, CL_MEM_READ_WRITE, h_a.size()*sizeof(float), NULL, NULL);
-	d_sum = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_sum.size()*sizeof(float)*ceil(n / localSize), NULL, NULL);
+	d_a = clCreateBuffer(context, CL_MEM_READ_WRITE, h_a_bytes, NULL, NULL);
+	d_sum = clCreateBuffer(context, CL_MEM_READ_WRITE, h_sum_bytes, NULL, NULL);
 	
 	// Write our data set into the input array in device memory
-	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a.size()*sizeof(float), h_a.data(), 0, NULL, NULL);
+	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
 
-	// Set the arguments to our compute kernel
-	err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_a);
-	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
-	err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
-
-	// Execute the kernel over the entire range of the data set  
-	err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
-
-	// Wait for the command queue to get serviced before reading back results
-	//err |= clFinish(queue);
-
-	for (int i = n; i > 1; i = ceil(i / localSize)) {
+	bool mode = false;
+	int i = n;
+	for (size_t j = 0; j < 2; mode = !mode, j++) {
 		//for (int i = 0; i < 1; i++) {
-
-			// Set the arguments to our compute kernel
-		err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_sum);
-		err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_sum);
+		//int newN = ceil(i / localSize);
+		// Set the arguments to our compute kernel
+		err |= clSetKernelArg(kernel, mode, sizeof(cl_mem), &d_a);
+		err |= clSetKernelArg(kernel, !mode, sizeof(cl_mem), &d_sum);
 		err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &i);
 
 		// Execute the kernel over the entire range of the data set  
 		err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 		// Wait for the command queue to get serviced before reading back results
+		i = ceil(i / (float)localSize);
 	}
 	
+	// Wait for the command queue to get serviced before reading back results
 	err |= clFinish(queue);
 	
 	// Read the results from the device
-	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0, h_sum.size()*sizeof(float), h_sum.data(), 0, NULL, NULL);
+	clEnqueueReadBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
 
 	//Sum up vector c and print result divided by n, this should equal 1 within error
-	std::cout << "final result: " << h_sum[0] << std::endl;
+	std::cout << "final result: " << h_a[0] << std::endl;
 
 	// release OpenCL resources
 	clReleaseMemObject(d_a);
@@ -144,13 +142,13 @@ int main(int argc, char* argv[])
 
 	//release host memory
 
-	double sum = 0;
+	/*double sum = 0;
 	for (int i = 0; i<n; i++){
 		sum += h_a[i];
 	}
 
 	cout << "host:" << sum << endl;
-	
+	*/
 	system("pause");
 	//
 	return 0;
