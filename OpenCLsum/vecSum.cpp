@@ -108,8 +108,8 @@ int main(int argc, char* argv[])
 		kernels[i] = clCreateKernel(program, "sum", &err);
 
 	// Create the input and output arrays in device memory for our calculation
-	d_a = clCreateBuffer(context, CL_MEM_READ_WRITE, h_a_bytes, NULL, NULL);
-	d_sum = clCreateBuffer(context, CL_MEM_READ_WRITE, h_sum_bytes, NULL, NULL);
+	d_a = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_a_bytes, NULL, NULL);
+	d_sum = clCreateBuffer(context, CL_MEM_READ_ONLY, h_sum_bytes, NULL, NULL);
 	
 	// Write our data set into the input array in device memory
 	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
@@ -140,10 +140,10 @@ int main(int argc, char* argv[])
 	err |= clFinish(queue);
 	
 	// Read the results from the device
-	clEnqueueReadBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
+	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0, sizeof(float), h_sum.data(), 0, NULL, NULL);
 
 	// print the result of the parallel algorithm
-	std::cout << "final result: " << h_a[0] << std::endl;
+	std::cout << "final result: " << h_sum[0] << std::endl;
 
 	// release OpenCL resources
 	clReleaseMemObject(d_a);
