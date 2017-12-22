@@ -39,7 +39,7 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 1000;
+	const int n = 1000000;
 
 	// Device input buffers
 	cl_mem d_a;
@@ -51,36 +51,44 @@ int main(int argc, char* argv[])
 	cl_context context;               // context
 	cl_command_queue queue;           // command queue
 	cl_program program;               // program
-	cl_kernel kernel;                 // kernel
+	cl_int err;
 
 	// Allocate memory for each vector on host
-	std::vector<float> h_sum(1);
 	std::vector<float> h_a(n);
+	std::vector<float> h_sum(1);
 
 	// Initialize vectors on host
 	for (int i = 0; i < n; i++)
-	{
 		h_a[i] = static_cast<float>(i);
-	}
 
-	size_t globalSize, localSize;
-	cl_int err;
+	// print serilize host summation of input vector
+	double sum = 0;
+	for (int i = 0; i<n; i++)
+		sum += h_a[i];
+	cout << "host:" << sum << endl;
 
 	// Number of work items in each local work group
+	size_t globalSize, localSize;
 	localSize = 64;
 
 	// Number of total work items - localSize must be devisor
 	globalSize = static_cast<size_t>(ceil(n / (float)localSize)*localSize);
 
 	//calc input and output array sizes
-	size_t h_a_bytes = h_a.size() * sizeof(float);
-	size_t h_sum_bytes = h_sum.size() * sizeof(float)*ceil(n / (float) localSize);
+	size_t h_a_bytes = n * sizeof(float);
+	size_t h_sum_bytes = static_cast<size_t>(ceil(n / (float)localSize) * sizeof(float));
+
+	// number of loops - the levels of reductions
+	size_t loops = static_cast<size_t>(ceil(log(n)/log(localSize)));
+	
+	// allocate the kernels that target for execution
+	cl_kernel *kernels = new cl_kernel[loops];
 
 	// Bind to platform
 	err = clGetPlatformIDs(1, &cpPlatform, NULL);
 
 	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &device_id, NULL);
+	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
 
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -89,16 +97,15 @@ int main(int argc, char* argv[])
 	queue = clCreateCommandQueue(context, device_id, 0, &err);
 
 	// Create the compute program from the source buffer
-	char* ans = getKernel("sum.cl");
-	program = clCreateProgramWithSource(context, 1,
-		(const char **) & ans, NULL, &err);
-	delete[] ans;
+	char* kernelStr = getKernel("sum.cl");
+	program = clCreateProgramWithSource(context, 1, (const char **)& kernelStr, NULL, &err);
 
-	// Build the program executable 
+		// Build the program executable 
 	clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
-
-	// Create the compute kernel in the program we wish to run
-	kernel = clCreateKernel(program, "sum", &err);
+	
+	// Create the compute kernels in the program we wish to run
+	for (size_t i = 0; i < loops; i++)
+		kernels[i] = clCreateKernel(program, "sum", &err);
 
 	// Create the input and output arrays in device memory for our calculation
 	d_a = clCreateBuffer(context, CL_MEM_READ_WRITE, h_a_bytes, NULL, NULL);
@@ -107,20 +114,26 @@ int main(int argc, char* argv[])
 	// Write our data set into the input array in device memory
 	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
 
+	// kerenel argument numbering
 	bool mode = false;
-	int i = n;
-	for (size_t j = 0; j < 2; mode = !mode, j++) {
-		//for (int i = 0; i < 1; i++) {
-		//int newN = ceil(i / localSize);
+
+	size_t length = n;
+	// pipeline the kernels into the queue
+	for (size_t k = 0; k < loops; mode = !mode, k++) {
+		
 		// Set the arguments to our compute kernel
-		err |= clSetKernelArg(kernel, mode, sizeof(cl_mem), &d_a);
-		err |= clSetKernelArg(kernel, !mode, sizeof(cl_mem), &d_sum);
-		err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &i);
+		err |= clSetKernelArg(kernels[k], mode, sizeof(cl_mem), &d_a);
+		err |= clSetKernelArg(kernels[k], !mode, sizeof(cl_mem), &d_sum);
+		err |= clSetKernelArg(kernels[k], 2, sizeof(unsigned int), &length);
 
 		// Execute the kernel over the entire range of the data set  
-		err |= clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
-		// Wait for the command queue to get serviced before reading back results
-		i = ceil(i / (float)localSize);
+		err |= clEnqueueNDRangeKernel(queue, kernels[k], 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+
+		// Redetermine the vectour length after a reduction
+		length = static_cast<size_t>(ceil(length / (float)localSize));
+		
+		//  Redetermine the global work items to lauunch after a reduction
+		globalSize = static_cast<size_t>(ceil(length / (float)localSize)*localSize);
 	}
 	
 	// Wait for the command queue to get serviced before reading back results
@@ -129,27 +142,23 @@ int main(int argc, char* argv[])
 	// Read the results from the device
 	clEnqueueReadBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
 
-	//Sum up vector c and print result divided by n, this should equal 1 within error
+	// print the result of the parallel algorithm
 	std::cout << "final result: " << h_a[0] << std::endl;
 
 	// release OpenCL resources
 	clReleaseMemObject(d_a);
 	clReleaseMemObject(d_sum);
+	for (size_t i = 0; i < loops; i++)
+		clReleaseKernel(kernels[i]);
 	clReleaseProgram(program);
-	clReleaseKernel(kernel);
 	clReleaseCommandQueue(queue);
 	clReleaseContext(context);
 
 	//release host memory
+	delete[] kernels;
+	delete[] kernelStr;
 
-	/*double sum = 0;
-	for (int i = 0; i<n; i++){
-		sum += h_a[i];
-	}
 
-	cout << "host:" << sum << endl;
-	*/
 	system("pause");
-	//
 	return 0;
 }
