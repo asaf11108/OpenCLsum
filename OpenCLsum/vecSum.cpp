@@ -42,7 +42,10 @@ int main(int argc, char* argv[])
 {
 	
 	const int n = 10000000;
-
+	int* value;
+	size_t valueSize;
+	int Max_Compute_Units;
+	int Max_Workgroup_Size;
 	// Device input buffers
 	cl_mem d_a;
 	// Device output buffer
@@ -63,6 +66,8 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < n; i++)
 		h_a[i] = static_cast<float>(i);
 
+	// get devices info
+	
 
 	// Number of work items in each local work group
 	size_t globalSize, localSize;
@@ -86,6 +91,29 @@ int main(int argc, char* argv[])
 
 	// Get ID for the device
 	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+
+	
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, 0, NULL, &valueSize);
+	value = (int*)malloc(valueSize);
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, valueSize, value, NULL);
+	Max_Compute_Units = *value;
+	free(value);
+
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, 0, NULL, &valueSize);
+	value = (int*)malloc(valueSize);
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, valueSize, value, NULL);
+	Max_Workgroup_Size = *value;
+	free(value);
+
+	char* value1;
+	clGetDeviceInfo(device_id, CL_DEVICE_NAME, 0, NULL, &valueSize);
+	value1 = (char*)malloc(valueSize);
+	clGetDeviceInfo(device_id, CL_DEVICE_NAME, valueSize, value1, NULL);
+	
+	std::cout << "CL_DEVICE_NAME:" << *value1 << endl;
+	std::cout << "CL_DEVICE_MAX_COMPUTE_UNITS:" << Max_Compute_Units << endl;
+	std::cout << "CL_DEVICE_MAX_WORK_GROUP_SIZE:" << Max_Workgroup_Size << endl;
+	free(value1);
 
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
