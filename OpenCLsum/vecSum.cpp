@@ -5,6 +5,8 @@
 #include <math.h>
 #include <vector>
 #include <ctime>
+#include <chrono>
+
 
 #define __CL_ENABLE_EXCEPTIONS
 #include <CL/opencl.h>
@@ -39,7 +41,7 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 1000000;
+	const int n = 10000000;
 
 	// Device input buffers
 	cl_mem d_a;
@@ -61,11 +63,6 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < n; i++)
 		h_a[i] = static_cast<float>(i);
 
-	// print serilize host summation of input vector
-	double sum = 0;
-	for (int i = 0; i<n; i++)
-		sum += h_a[i];
-	cout << "host:" << sum << endl;
 
 	// Number of work items in each local work group
 	size_t globalSize, localSize;
@@ -101,7 +98,7 @@ int main(int argc, char* argv[])
 	program = clCreateProgramWithSource(context, 1, (const char **)& kernelStr, NULL, &err);
 
 		// Build the program executable 
-	clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+	err |= clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
 	
 	// Create the compute kernels in the program we wish to run
 	for (size_t i = 0; i < loops; i++)
@@ -119,12 +116,14 @@ int main(int argc, char* argv[])
 
 	size_t length = n;
 	// pipeline the kernels into the queue
+	auto start = std::chrono::system_clock::now();
 	for (size_t k = 0; k < loops; mode = !mode, k++) {
 		
 		// Set the arguments to our compute kernel
 		err |= clSetKernelArg(kernels[k], mode, sizeof(cl_mem), &d_a);
 		err |= clSetKernelArg(kernels[k], !mode, sizeof(cl_mem), &d_sum);
-		err |= clSetKernelArg(kernels[k], 2, sizeof(unsigned int), &length);
+		err |= clSetKernelArg(kernels[k], 2, localSize*sizeof(float), NULL);
+		err |= clSetKernelArg(kernels[k], 3, sizeof(unsigned int), &length);
 
 		// Execute the kernel over the entire range of the data set  
 		err |= clEnqueueNDRangeKernel(queue, kernels[k], 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
@@ -138,12 +137,32 @@ int main(int argc, char* argv[])
 	
 	// Wait for the command queue to get serviced before reading back results
 	err |= clFinish(queue);
-	
+	auto end = std::chrono::system_clock::now();
+	std::chrono::duration<double> elapsed_seconds = end - start;
+	std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+
 	// Read the results from the device
-	clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0, sizeof(float), h_sum.data(), 0, NULL, NULL);
+	if (mode)
+		clEnqueueReadBuffer(queue, d_sum, CL_TRUE, 0, sizeof(float), h_sum.data(), 0, NULL, NULL);
+	else
+		clEnqueueReadBuffer(queue, d_a, CL_TRUE, 0, sizeof(float), h_sum.data(), 0, NULL, NULL);
 
 	// print the result of the parallel algorithm
 	std::cout << "final result: " << h_sum[0] << std::endl;
+	std::cout << "elapsed time for Parallel reduction approch: " << elapsed_seconds.count() << "s\n";
+	
+	start = std::chrono::system_clock::now();
+
+	double sum = 0;
+	for (int i = 0; i<n; i++)
+		sum += h_a[i];
+	
+	end = std::chrono::system_clock::now();
+	elapsed_seconds = end - start;
+	end_time = std::chrono::system_clock::to_time_t(end);
+	cout << "host:" << sum << endl;
+	std::cout << "elapsed time for naive approch: " << elapsed_seconds.count() << "s\n";
+	// print serilize host summation of input vector
 
 	// release OpenCL resources
 	clReleaseMemObject(d_a);
