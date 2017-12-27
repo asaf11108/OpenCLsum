@@ -180,7 +180,6 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Intel_OpenCL_Build_Rules Include="device.cl" />
     <Intel_OpenCL_Build_Rules Include="sum.cl" />
   </ItemGroup>
   <ItemGroup>

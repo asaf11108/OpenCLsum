@@ -15,19 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Intel_OpenCL_Build_Rules Include="device.cl">
-      <Filter>OpenCL Files</Filter>
+    <ClCompile Include="vecSum.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Intel_OpenCL_Build_Rules Include="serial.cl">
+      <Filter>Source Files</Filter>
     </Intel_OpenCL_Build_Rules>
     <Intel_OpenCL_Build_Rules Include="sum.cl">
       <Filter>Source Files</Filter>
     </Intel_OpenCL_Build_Rules>
-    <Intel_OpenCL_Build_Rules Include="serial.cl">
-      <Filter>Source Files</Filter>
+    <Intel_OpenCL_Build_Rules Include="device.cl">
+      <Filter>OpenCL Files</Filter>
     </Intel_OpenCL_Build_Rules>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="vecSum.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
 </Project>
