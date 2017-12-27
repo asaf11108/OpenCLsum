@@ -47,6 +47,7 @@ int main(int argc, char* argv[])
 	size_t valueSize;
 	int Max_Compute_Units;
 	int Max_Workgroup_Size;
+	
 	// Device input buffers
 	cl_mem d_a;
 	// Device output buffer
@@ -57,7 +58,8 @@ int main(int argc, char* argv[])
 	cl_device_id device_id;           // device ID
 	cl_context context;               // context
 	cl_command_queue queue;           // command queue
-	cl_program program;               // program
+	cl_program program_red;               // program
+	cl_program program_ser;               // program
 	cl_int err;
 
 	// Allocate memory for each vector on host
@@ -98,9 +100,6 @@ int main(int argc, char* argv[])
 	// number of loops - the levels of reductions
 	size_t loops = static_cast<size_t>(ceil(log(n)/log(localSize)));
 	
-	// allocate the kernels that target for execution
-	cl_kernel *kernels = new cl_kernel[loops];
-
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
 
@@ -108,23 +107,41 @@ int main(int argc, char* argv[])
 	queue = clCreateCommandQueue(context, device_id, 0, &err);
 
 	// Create the compute program from the source buffer
-	char* kernelStr = getKernel("sum.cl");
-	program = clCreateProgramWithSource(context, 1, (const char **)& kernelStr, NULL, &err);
+	char* kernelStrSer = getKernel("serial.cl");
+	program_ser = clCreateProgramWithSource(context, 1, (const char **)& kernelStrSer, NULL, &err);
+	
+	// Build the program executable 
+	err |= clBuildProgram(program_ser, 0, NULL, NULL, NULL, NULL);
+
+	cl_kernel kernel_ser = clCreateKernel(program_ser, "serial", &err);
+	d_a = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_a_bytes, NULL, NULL);
+	err |= clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
+	err |= clSetKernelArg(kernel_ser, 0, sizeof(cl_mem), &d_a);
+	err |= clSetKernelArg(kernel_ser, 1, sizeof(unsigned int), &n);
+
+
+
+	// Execute the kernel over the entire range of the data set  
+	err |= clEnqueueNDRangeKernel(queue, kernel_ser, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+
+
+	// Create the compute program from the source buffer
+	char* kernelStrRed = getKernel("sum.cl");
+	program_red = clCreateProgramWithSource(context, 1, (const char **)& kernelStrRed, NULL, &err);
 
 		// Build the program executable 
-	err |= clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+	err |= clBuildProgram(program_red, 0, NULL, NULL, NULL, NULL);
 	
+	// allocate the kernels that target for execution
+	cl_kernel *kernels = new cl_kernel[loops];
+
 	// Create the compute kernels in the program we wish to run
 	for (size_t i = 0; i < loops; i++)
-		kernels[i] = clCreateKernel(program, "sum", &err);
+		kernels[i] = clCreateKernel(program_red, "sum", &err);
 
 	// Create the input and output arrays in device memory for our calculation
-	d_a = clCreateBuffer(context, CL_MEM_WRITE_ONLY, h_a_bytes, NULL, NULL);
 	d_sum = clCreateBuffer(context, CL_MEM_READ_ONLY, h_sum_bytes, NULL, NULL);
 	
-	// Write our data set into the input array in device memory
-	err = clEnqueueWriteBuffer(queue, d_a, CL_TRUE, 0, h_a_bytes, h_a.data(), 0, NULL, NULL);
-
 	// kerenel argument numbering
 	bool mode = false;
 
@@ -138,6 +155,8 @@ int main(int argc, char* argv[])
 		err |= clSetKernelArg(kernels[k], !mode, sizeof(cl_mem), &d_sum);
 		err |= clSetKernelArg(kernels[k], 2, localSize*sizeof(float), NULL);
 		err |= clSetKernelArg(kernels[k], 3, sizeof(unsigned int), &length);
+
+
 
 		// Execute the kernel over the entire range of the data set  
 		err |= clEnqueueNDRangeKernel(queue, kernels[k], 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
@@ -179,17 +198,22 @@ int main(int argc, char* argv[])
 	// print serilize host summation of input vector
 
 	// release OpenCL resources
+	clReleaseKernel(kernel_ser);
+	clReleaseProgram(program_ser);
+
+	// release OpenCL resources
 	clReleaseMemObject(d_a);
 	clReleaseMemObject(d_sum);
 	for (size_t i = 0; i < loops; i++)
 		clReleaseKernel(kernels[i]);
-	clReleaseProgram(program);
+	clReleaseProgram(program_red);
 	clReleaseCommandQueue(queue);
 	clReleaseContext(context);
 
 	//release host memory
 	delete[] kernels;
-	delete[] kernelStr;
+	delete[] kernelStrSer;
+	delete[] kernelStrRed;
 
 
 	system("pause");
