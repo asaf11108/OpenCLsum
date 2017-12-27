@@ -16,6 +16,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#define CORES_PER_COMPUTE_UNIT 64
 using namespace std;
 // OpenCL kernel. Each work item takes care of one element of c
 char* getKernel(string name){
@@ -41,7 +42,7 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 10000000;
+	const int n = 1000000;
 	int* value;
 	size_t valueSize;
 	int Max_Compute_Units;
@@ -67,15 +68,28 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < n; i++)
 		h_a[i] = static_cast<float>(i);
 
+	// Bind to platform
+	clGetPlatformIDs(0, NULL, &platformCount);
+	cpPlatform = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
+	err = clGetPlatformIDs(platformCount, cpPlatform, NULL);
+
+	// Get ID for the device
+	err = clGetDeviceIDs(cpPlatform[0], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+
 	// get devices info
-	
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, 0, NULL, &valueSize);
+	value = (int*)malloc(valueSize);
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, valueSize, value, NULL);
+	Max_Compute_Units = *value;
+	free(value);
+	std::cout << "CL_DEVICE_MAX_COMPUTE_UNITS:" << Max_Compute_Units << endl;
 
 	// Number of work items in each local work group
 	size_t globalSize, localSize;
-	localSize = 128;
+	localSize = CORES_PER_COMPUTE_UNIT;
 
 	// Number of total work items - localSize must be devisor
-	globalSize = static_cast<size_t>(ceil(n / (float)localSize)*localSize);
+	globalSize = static_cast<size_t>(Max_Compute_Units * localSize*6);
 
 	//calc input and output array sizes
 	size_t h_a_bytes = n * sizeof(float);
@@ -86,37 +100,6 @@ int main(int argc, char* argv[])
 	
 	// allocate the kernels that target for execution
 	cl_kernel *kernels = new cl_kernel[loops];
-
-	// Bind to platform
-	clGetPlatformIDs(0, NULL, &platformCount);
-	cpPlatform = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
-	err = clGetPlatformIDs(platformCount, cpPlatform, NULL);
-
-	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform[0], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
-
-	
-	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, 0, NULL, &valueSize);
-	value = (int*)malloc(valueSize);
-	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, valueSize, value, NULL);
-	Max_Compute_Units = *value;
-	free(value);
-
-	clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, 0, NULL, &valueSize);
-	value = (int*)malloc(valueSize);
-	clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, valueSize, value, NULL);
-	Max_Workgroup_Size = *value;
-	free(value);
-
-	char* value1;
-	clGetDeviceInfo(device_id, CL_DEVICE_NAME, 0, NULL, &valueSize);
-	value1 = (char*)malloc(valueSize);
-	clGetDeviceInfo(device_id, CL_DEVICE_NAME, valueSize, value1, NULL);
-	
-	std::cout << "CL_DEVICE_NAME:" << *value1 << endl;
-	std::cout << "CL_DEVICE_MAX_COMPUTE_UNITS:" << Max_Compute_Units << endl;
-	std::cout << "CL_DEVICE_MAX_WORK_GROUP_SIZE:" << Max_Workgroup_Size << endl;
-	free(value1);
 
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -163,7 +146,7 @@ int main(int argc, char* argv[])
 		length = static_cast<size_t>(ceil(length / (float)localSize));
 		
 		//  Redetermine the global work items to lauunch after a reduction
-		globalSize = static_cast<size_t>(ceil(length / (float)localSize)*localSize);
+		//globalSize = static_cast<size_t>(ceil(length / (float)localSize)*localSize);
 	}
 	
 	// Wait for the command queue to get serviced before reading back results
