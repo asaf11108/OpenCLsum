@@ -51,7 +51,8 @@ int main(int argc, char* argv[])
 	// Device output buffer
 	cl_mem d_sum;
 
-	cl_platform_id cpPlatform;        // OpenCL platform
+	cl_platform_id* cpPlatform;       // OpenCL platform
+	cl_uint platformCount;			  //number of platforms
 	cl_device_id device_id;           // device ID
 	cl_context context;               // context
 	cl_command_queue queue;           // command queue
@@ -71,7 +72,7 @@ int main(int argc, char* argv[])
 
 	// Number of work items in each local work group
 	size_t globalSize, localSize;
-	localSize = 64;
+	localSize = 128;
 
 	// Number of total work items - localSize must be devisor
 	globalSize = static_cast<size_t>(ceil(n / (float)localSize)*localSize);
@@ -87,10 +88,12 @@ int main(int argc, char* argv[])
 	cl_kernel *kernels = new cl_kernel[loops];
 
 	// Bind to platform
-	err = clGetPlatformIDs(1, &cpPlatform, NULL);
+	clGetPlatformIDs(0, NULL, &platformCount);
+	cpPlatform = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
+	err = clGetPlatformIDs(platformCount, cpPlatform, NULL);
 
 	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+	err = clGetDeviceIDs(cpPlatform[0], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
 
 	
 	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, 0, NULL, &valueSize);
