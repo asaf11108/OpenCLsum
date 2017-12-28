@@ -16,7 +16,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#define CORES_PER_COMPUTE_UNIT 64
+#define CORES_PER_COMPUTE_UNIT 128
 using namespace std;
 // OpenCL kernel. Each work item takes care of one element of c
 char* getKernel(string name){
@@ -42,7 +42,7 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 1000000;
+	const int n = 10000000;
 	int* value;
 	size_t valueSize;
 	int Max_Compute_Units;
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
 	err = clGetPlatformIDs(platformCount, cpPlatform, NULL);
 
 	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform[0], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+	err = clGetDeviceIDs(cpPlatform[1], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
 
 	// get devices info
 	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, 0, NULL, &valueSize);
@@ -95,10 +95,10 @@ int main(int argc, char* argv[])
 
 	//calc input and output array sizes
 	size_t h_a_bytes = n * sizeof(float);
-	size_t h_sum_bytes = static_cast<size_t>(ceil(n / (float)localSize) * sizeof(float));
+	size_t h_sum_bytes = static_cast<size_t>(ceil(n / (float)localSize) * sizeof(float) * 6);
 
 	// number of loops - the levels of reductions
-	size_t loops = static_cast<size_t>(ceil(log(n)/log(localSize)));
+	size_t loops = static_cast<size_t>(ceil(log(n/globalSize)/log(localSize)));
 	
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -165,7 +165,7 @@ int main(int argc, char* argv[])
 		length = static_cast<size_t>(ceil(length / (float)localSize));
 		
 		//  Redetermine the global work items to lauunch after a reduction
-		//globalSize = static_cast<size_t>(ceil(length / (float)localSize)*localSize);
+		globalSize = static_cast<size_t>(ceil(length / (float)localSize)*localSize * 6);
 	}
 	
 	// Wait for the command queue to get serviced before reading back results
