@@ -17,7 +17,7 @@
 #include <iomanip>
 #include <fstream>
 #define CORES_PER_COMPUTE_UNIT 64
-#define OVERLOAD 6
+#define OVERLOAD 8
 using namespace std;
 // OpenCL kernel. Each work item takes care of one element of c
 char* getKernel(string name){
@@ -119,11 +119,6 @@ int main(int argc, char* argv[])
 	err |= clSetKernelArg(kernel_ser, 0, sizeof(cl_mem), &d_a);
 	err |= clSetKernelArg(kernel_ser, 1, sizeof(unsigned int), &n);
 
-
-
-	// Execute the kernel over the entire range of the data set  
-
-
 	// Create the compute program from the source buffer
 	char* kernelStrRed = getKernel("sum.cl");
 	program_red = clCreateProgramWithSource(context, 1, (const char **)& kernelStrRed, NULL, &err);
@@ -143,10 +138,11 @@ int main(int argc, char* argv[])
 	
 	// kerenel argument numbering
 	bool mode = false;
-
 	size_t length = globalSize;
+	
 	// pipeline the kernels into the queue
 	auto start = std::chrono::system_clock::now();
+	// Execute the kernel over the entire range of the data set  
 	err |= clEnqueueNDRangeKernel(queue, kernel_ser, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 	for (size_t k = 0; k < loops; mode = !mode, k++) {
 		
