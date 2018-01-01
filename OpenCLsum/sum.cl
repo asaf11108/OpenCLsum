@@ -1,21 +1,12 @@
 __kernel void sum(  __global float *a,
                        __global float *sum,
-					   __local float *mem,
-                       const unsigned int n)
+					   __local float *mem)
 {
     uint glob_id = get_global_id(0);
 	uint loc_id = get_local_id(0);
 	uint loc_size = get_local_size(0);
     uint group_id = get_group_id(0);
 	
-/*	  float accumulator = INFINITY;
-  // Loop sequentially over chunks of input vector
-  while (global_index < length) {
-    float element = buffer[global_index];
-    accumulator += element;
-    global_index += get_global_size(0);
-  }
-  */
 	mem[loc_id] = a[glob_id];
 	barrier(CLK_LOCAL_MEM_FENCE);
 

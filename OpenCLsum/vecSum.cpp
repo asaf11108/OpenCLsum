@@ -16,7 +16,8 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#define CORES_PER_COMPUTE_UNIT 128
+#define CORES_PER_COMPUTE_UNIT 64
+#define OVERLOAD 6
 using namespace std;
 // OpenCL kernel. Each work item takes care of one element of c
 char* getKernel(string name){
@@ -42,11 +43,10 @@ char* getKernel(string name){
 int main(int argc, char* argv[])
 {
 	
-	const int n = 10000000;
+	const int n = 100000000;
 	int* value;
 	size_t valueSize;
 	int Max_Compute_Units;
-	int Max_Workgroup_Size;
 	
 	// Device input buffers
 	cl_mem d_a;
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
 	err = clGetPlatformIDs(platformCount, cpPlatform, NULL);
 
 	// Get ID for the device
-	err = clGetDeviceIDs(cpPlatform[1], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+	err = clGetDeviceIDs(cpPlatform[0], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
 
 	// get devices info
 	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, 0, NULL, &valueSize);
@@ -91,14 +91,14 @@ int main(int argc, char* argv[])
 	localSize = CORES_PER_COMPUTE_UNIT;
 
 	// Number of total work items - localSize must be devisor
-	globalSize = static_cast<size_t>(Max_Compute_Units * localSize*6);
+	globalSize = static_cast<size_t>(Max_Compute_Units * localSize * OVERLOAD);
 
 	//calc input and output array sizes
 	size_t h_a_bytes = n * sizeof(float);
-	size_t h_sum_bytes = static_cast<size_t>(ceil(n / (float)localSize) * sizeof(float) * 6);
+	size_t h_sum_bytes = static_cast<size_t>(ceil(globalSize / (float)localSize) * sizeof(float) * OVERLOAD);
 
 	// number of loops - the levels of reductions
-	size_t loops = static_cast<size_t>(ceil(log(n/globalSize)/log(localSize)));
+	size_t loops = static_cast<size_t>(ceil(log(globalSize)/log(localSize)));
 	
 	// Create a context  
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -145,7 +145,7 @@ int main(int argc, char* argv[])
 	// kerenel argument numbering
 	bool mode = false;
 
-	size_t length = n;
+	size_t length = globalSize;
 	// pipeline the kernels into the queue
 	auto start = std::chrono::system_clock::now();
 	for (size_t k = 0; k < loops; mode = !mode, k++) {
@@ -154,9 +154,6 @@ int main(int argc, char* argv[])
 		err |= clSetKernelArg(kernels[k], mode, sizeof(cl_mem), &d_a);
 		err |= clSetKernelArg(kernels[k], !mode, sizeof(cl_mem), &d_sum);
 		err |= clSetKernelArg(kernels[k], 2, localSize*sizeof(float), NULL);
-		err |= clSetKernelArg(kernels[k], 3, sizeof(unsigned int), &length);
-
-
 
 		// Execute the kernel over the entire range of the data set  
 		err |= clEnqueueNDRangeKernel(queue, kernels[k], 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
@@ -165,7 +162,7 @@ int main(int argc, char* argv[])
 		length = static_cast<size_t>(ceil(length / (float)localSize));
 		
 		//  Redetermine the global work items to lauunch after a reduction
-		globalSize = static_cast<size_t>(ceil(length / (float)localSize)*localSize * 6);
+		globalSize = static_cast<size_t>(ceil(length / (float)localSize)*localSize);
 	}
 	
 	// Wait for the command queue to get serviced before reading back results
