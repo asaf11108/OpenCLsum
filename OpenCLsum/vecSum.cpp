@@ -122,7 +122,6 @@ int main(int argc, char* argv[])
 
 
 	// Execute the kernel over the entire range of the data set  
-	err |= clEnqueueNDRangeKernel(queue, kernel_ser, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 
 
 	// Create the compute program from the source buffer
@@ -148,6 +147,7 @@ int main(int argc, char* argv[])
 	size_t length = globalSize;
 	// pipeline the kernels into the queue
 	auto start = std::chrono::system_clock::now();
+	err |= clEnqueueNDRangeKernel(queue, kernel_ser, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 	for (size_t k = 0; k < loops; mode = !mode, k++) {
 		
 		// Set the arguments to our compute kernel
