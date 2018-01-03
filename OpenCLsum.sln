@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenCLsum", "OpenCLsum\Open
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "openCLtemp", "openCLtemp\openCLtemp.vcxproj", "{DA4CC028-B93A-4D49-B5A3-585BE377F002}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "connected components", "connected components\connected components.vcxproj", "{3CA1BB24-6740-4A8F-8EE1-942A541489BE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -29,6 +31,14 @@ Global
 		{DA4CC028-B93A-4D49-B5A3-585BE377F002}.Release|x64.Build.0 = Release|x64
 		{DA4CC028-B93A-4D49-B5A3-585BE377F002}.Release|x86.ActiveCfg = Release|Win32
 		{DA4CC028-B93A-4D49-B5A3-585BE377F002}.Release|x86.Build.0 = Release|Win32
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Debug|x64.ActiveCfg = Debug|x64
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Debug|x64.Build.0 = Debug|x64
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Debug|x86.ActiveCfg = Debug|Win32
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Debug|x86.Build.0 = Debug|Win32
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Release|x64.ActiveCfg = Release|x64
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Release|x64.Build.0 = Release|x64
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Release|x86.ActiveCfg = Release|Win32
+		{3CA1BB24-6740-4A8F-8EE1-942A541489BE}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
