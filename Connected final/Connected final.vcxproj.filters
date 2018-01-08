@@ -9,20 +9,19 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
+    <Filter Include="OpenCL Files">
+      <UniqueIdentifier>{D011BB44-1BF7-4113-997B-A081035B40D8}</UniqueIdentifier>
+      <Extensions>cl</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Intel_OpenCL_Build_Rules Include="ccl.cl">
-      <Filter>Source Files</Filter>
+    <Intel_OpenCL_Build_Rules Include="device.cl">
+      <Filter>OpenCL Files</Filter>
     </Intel_OpenCL_Build_Rules>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="host.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="test.png">
-      <Filter>Source Files</Filter>
-    </Image>
   </ItemGroup>
 </Project>

@@ -29,8 +29,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{bc6ac000-8ad2-43a1-ab51-7bc2efe10f39}</ProjectGuid>
-    <RootNamespace>Connected_components1</RootNamespace>
+    <ProjectGuid>{4404f630-b50b-4e6d-bb21-086171a78def}</ProjectGuid>
+    <RootNamespace>Connected_final</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -102,7 +102,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(INTELOCLSDKROOT)lib\x86;%(AdditionalLibraryDirectories);$(OPENCV3_DIR)\x64\vc14\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>OpenCL.lib;opencv_world340d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
@@ -122,7 +122,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(INTELOCLSDKROOT)lib\x86;%(AdditionalLibraryDirectories);$(OPENCV3_DIR)\x64\vc14\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>OpenCL.lib;opencv_world340d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
@@ -146,7 +146,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(INTELOCLSDKROOT)lib\x64;%(AdditionalLibraryDirectories);$(OPENCV3_DIR)\x64\vc14\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>OpenCL.lib;opencv_world340d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -172,7 +172,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(INTELOCLSDKROOT)lib\x64;%(AdditionalLibraryDirectories);$(OPENCV3_DIR)\x64\vc14\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>OpenCL.lib;opencv_world340d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
@@ -180,13 +180,10 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Intel_OpenCL_Build_Rules Include="ccl.cl" />
+    <Intel_OpenCL_Build_Rules Include="device.cl" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="host.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="test.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

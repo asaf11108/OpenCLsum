@@ -1,7 +1,11 @@
-#define CL_ENABLE_EXCEPTIONS
-#include "opencv2/opencv.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include <CL/opencl.h>
+// Add you host code// Written by Naoki Shibata shibatch.sf.net@gmail.com 
+// http://ito-lab.naist.jp/~n-sibata/cclarticle/index.xhtml
+
+// This program is in public domain. You can use and modify this code for any purpose without any obligation.
+
+// This is an example implementation of a connected component labeling algorithm proposed in the following paper.
+// Naoki Shibata, Shinya Yamamoto: GPGPU-Assisted Subpixel Tracking Method for Fiducial Markers,
+// Journal of Information Processing, Vol.22(2014), No.1, pp.19-28, 2014-01. DOI:10.2197/ipsjjip.22.19
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -9,38 +13,23 @@
 #include <stdint.h>
 #include <math.h>
 #include <time.h>
-#include <string>
-#include <iostream>
-#include <iomanip>
-#include <fstream>
+
+#include "opencv2/opencv.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include <CL/opencl.h>
 
 char strbuf[10010] = "\0";
 
+void abortf(const char *mes, ...) {
+	va_list ap;
+	va_start(ap, mes);
+	vfprintf(stderr, mes, ap);
+	va_end(ap);
+	exit(-1);
+}
 
 #define MAXPLATFORMS 10
 #define MAXDEVICES 10
-
-using namespace std;
-// OpenCL kernel. Each work item takes care of one element of c
-char* getKernel(string name) {
-	string text = "";
-	string line;
-	ifstream inFile;
-
-	inFile.open(name);
-	if (!inFile) {
-		cout << "Unable to open file";
-		exit(1); // terminate with error
-	}
-
-	while (getline(inFile, line)) {
-		text += line + "\n";
-	}
-	inFile.close();
-	char *ans = new char[text.length() + 1];
-	strcpy(ans, text.c_str());
-	return ans;
-}
 
 cl_device_id simpleGetDevice(int did) {
 	cl_int ret;
@@ -49,9 +38,7 @@ cl_device_id simpleGetDevice(int did) {
 	cl_device_id devices[MAXDEVICES];
 
 	clGetPlatformIDs(MAXPLATFORMS, platformIDs, &nPlatforms); // select first platform
-	if (nPlatforms == 0) {
-		//abortf("No platform available");
-	}
+	if (nPlatforms == 0) abortf("No platform available");
 
 	int p;
 	for (p = 0; p<nPlatforms; p++) {
@@ -89,58 +76,83 @@ cl_context simpleCreateContext(cl_device_id device) {
 	cl_context hContext;
 
 	hContext = clCreateContext(NULL, 1, &device, openclErrorCallback, NULL, &ret);
-	if (ret != CL_SUCCESS) {
-		//abortf("Could not create context : %d\n", ret);
-	}
+	if (ret != CL_SUCCESS) abortf("Could not create context : %d\n", ret);
 
 	return hContext;
 }
 
+char *readFileAsStr(const char *fn) {
+	FILE *fp = fopen(fn, "r");
+	if (fp == NULL) abortf("Couldn't open file %s\n", fn);
+
+	long size;
+
+	fseek(fp, 0, SEEK_END);
+	size = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	if (size > 1000000) abortf("readFileAsStr : file too large\n");
+
+	char *buf = (char *)malloc(size + 10);
+
+	fread(buf, 1, size, fp);
+	buf[size] = '\0';
+
+	fclose(fp);
+
+	return buf;
+}
 
 #define MAXPASS 10
 
 int main(int argc, char **argv) {
 	int i;
-	char* imStr = "test.png";
 
-	IplImage *img = 0;
-	img = cvLoadImage(imStr, CV_LOAD_IMAGE_UNCHANGED);
-	if (!img) {
-		cout << "Could not load image " << imStr << endl;
-		system("pause");
-		exit(1);
+	if (argc < 2) {
+		fprintf(stderr, "Usage : %s <image file name> [<device number>]\nThe program will threshold the image, apply CCL,\nand output the result to output.png.\n", argv[0]);
+		fprintf(stderr, "\nAvailable OpenCL Devices :\n");
+		simpleGetDevice(-1);
+		exit(-1);
 	}
-
-	int width = img->width;
-	int height = img->height;
-	unsigned char *data = (unsigned char *)img->imageData;
 
 	//
 
-	cl_int *bufPix = (cl_int *)malloc(width * height * sizeof(cl_int));
-	cl_int *bufLabel = (cl_int *)malloc(width * height * sizeof(cl_int));
-	cl_int *bufFlags = (cl_int *)malloc((MAXPASS + 1)* sizeof(cl_int));
+	IplImage *img = 0;
+	img = cvLoadImage(argv[1], CV_LOAD_IMAGE_COLOR);
+	if (!img) abortf("Could not load %s\n", argv[1]);
 
-	
-		for (int y = 0; y<height; y++) {
-			for (int x = 0; x<width; x++) {
-				bufPix[y * width + x] = data[y * width + x];
+	if (img->nChannels != 3) abortf("nChannels != 3\n");
+
+	int iw = img->width, ih = img->height;
+	uint8_t *data = (uint8_t *)img->imageData;
+
+	//
+
+	cl_int *bufPix = (cl_int *)calloc(iw * ih, sizeof(cl_int));
+	cl_int *bufLabel = (cl_int *)calloc(iw * ih, sizeof(cl_int));
+	cl_int *bufFlags = (cl_int *)calloc(MAXPASS + 1, sizeof(cl_int));
+
+	{
+		int x, y;
+		for (y = 0; y<ih; y++) {
+			for (x = 0; x<iw; x++) {
+				bufPix[y * iw + x] = data[y * img->widthStep + x * 3 + 1] > 127 ? 1 : 0;
 			}
 		}
+	}
 
-	
+	//
 
 	int did = 0;
-	if (argc >= 3) did = atoi(0);
+	if (argc >= 3) did = atoi(argv[2]);
 
 	cl_device_id device = simpleGetDevice(did);
 	cl_context context = simpleCreateContext(device);
 
 	cl_command_queue queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, NULL);
 
-	char *source = getKernel("ccl.cl");
+	char *source = readFileAsStr("ccl.cl");
 	cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source, 0, NULL);
-	delete[] source;
 
 	cl_int ret = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
 	if (ret != CL_SUCCESS) {
@@ -157,11 +169,11 @@ int main(int argc, char **argv) {
 	cl_kernel kernel_propagate = clCreateKernel(program, "label8xMain_int_int", NULL);
 
 	// By specifying CL_MEM_COPY_HOST_PTR, device buffers are cleared.
-	cl_mem memPix = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, width * height * sizeof(cl_int), bufPix, NULL);
-	cl_mem memLabel = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, width * height * sizeof(cl_int), bufLabel, NULL);
+	cl_mem memPix = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, iw * ih * sizeof(cl_int), bufPix, NULL);
+	cl_mem memLabel = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, iw * ih * sizeof(cl_int), bufLabel, NULL);
 	cl_mem memFlags = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, (MAXPASS + 1) * sizeof(cl_int), bufFlags, NULL);
 
-	size_t work_size[2] = { (size_t)((width + 31) & ~31), (size_t)((height + 31) & ~31) };
+	size_t work_size[2] = { (size_t)((iw + 31) & ~31), (size_t)((ih + 31) & ~31) };
 
 	cl_event events[MAXPASS + 1];
 	for (i = 0; i <= MAXPASS; i++) {
@@ -175,8 +187,8 @@ int main(int argc, char **argv) {
 	clSetKernelArg(kernel_prepare, 2, sizeof(cl_mem), (void *)&memFlags);
 	i = MAXPASS; clSetKernelArg(kernel_prepare, 3, sizeof(cl_int), (void *)&i);
 	i = 0; clSetKernelArg(kernel_prepare, 4, sizeof(cl_int), (void *)&i);
-	clSetKernelArg(kernel_prepare, 5, sizeof(cl_int), (int *)&width);
-	clSetKernelArg(kernel_prepare, 6, sizeof(cl_int), (int *)&height);
+	clSetKernelArg(kernel_prepare, 5, sizeof(cl_int), (int *)&iw);
+	clSetKernelArg(kernel_prepare, 6, sizeof(cl_int), (int *)&ih);
 
 	clEnqueueNDRangeKernel(queue, kernel_prepare, 2, NULL, work_size, NULL, 0, NULL, &events[0]);
 
@@ -185,13 +197,13 @@ int main(int argc, char **argv) {
 		clSetKernelArg(kernel_propagate, 1, sizeof(cl_mem), (void *)&memPix);
 		clSetKernelArg(kernel_propagate, 2, sizeof(cl_mem), (void *)&memFlags);
 		clSetKernelArg(kernel_propagate, 3, sizeof(cl_int), (void *)&i);
-		clSetKernelArg(kernel_propagate, 4, sizeof(cl_int), (int *)&width);
-		clSetKernelArg(kernel_propagate, 5, sizeof(cl_int), (int *)&height);
+		clSetKernelArg(kernel_propagate, 4, sizeof(cl_int), (int *)&iw);
+		clSetKernelArg(kernel_propagate, 5, sizeof(cl_int), (int *)&ih);
 
 		clEnqueueNDRangeKernel(queue, kernel_propagate, 2, NULL, work_size, NULL, 0, NULL, &events[i]);
 	}
 
-	clEnqueueReadBuffer(queue, memLabel, CL_TRUE, 0, width * height * sizeof(cl_int), bufLabel, 0, NULL, NULL);
+	clEnqueueReadBuffer(queue, memLabel, CL_TRUE, 0, iw * ih * sizeof(cl_int), bufLabel, 0, NULL, NULL);
 	clEnqueueReadBuffer(queue, memFlags, CL_TRUE, 0, (MAXPASS + 1) * sizeof(cl_int), bufFlags, 0, NULL, NULL);
 
 	clFinish(queue);
@@ -222,9 +234,9 @@ int main(int argc, char **argv) {
 
 	{
 		int x, y;
-		for (y = 0; y<height; y++) {
-			for (x = 0; x<width; x++) {
-				int rgb = bufLabel[y * width + x] == -1 ? 0 : (bufLabel[y * width + x] * 1103515245 + 12345);
+		for (y = 0; y<ih; y++) {
+			for (x = 0; x<iw; x++) {
+				int rgb = bufLabel[y * iw + x] == -1 ? 0 : (bufLabel[y * iw + x] * 1103515245 + 12345);
 				//int rgb = bufLabel[y * iw + x] == -1 ? 0 : (bufLabel[y * iw + x]);
 				data[y * img->widthStep + x * 3 + 0] = rgb & 0xff; rgb >>= 8;
 				data[y * img->widthStep + x * 3 + 1] = rgb & 0xff; rgb >>= 8;
@@ -240,9 +252,6 @@ int main(int argc, char **argv) {
 	free(bufFlags);
 	free(bufLabel);
 	free(bufPix);
-
-	cvShowImage("color", img);
-	cvWaitKey();
 
 	exit(0);
 }
