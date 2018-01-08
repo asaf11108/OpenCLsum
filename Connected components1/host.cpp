@@ -104,13 +104,18 @@ int main(int argc, char **argv) {
 	char* imStr = "test.png";
 
 	IplImage *img = 0;
-	img = cvLoadImage(imStr, CV_LOAD_IMAGE_UNCHANGED);
+	img = cvLoadImage(imStr, CV_LOAD_IMAGE_COLOR);
 	if (!img) {
 		cout << "Could not load image " << imStr << endl;
 		system("pause");
 		exit(1);
 	}
 
+	if (img->nChannels != 3) {
+		cout << "nChannels != 3\n" << endl;
+		system("pause");
+		exit(1);
+	}
 	int width = img->width;
 	int height = img->height;
 	unsigned char *data = (unsigned char *)img->imageData;
@@ -121,14 +126,14 @@ int main(int argc, char **argv) {
 	cl_int *bufLabel = (cl_int *)malloc(width * height * sizeof(cl_int));
 	cl_int *bufFlags = (cl_int *)malloc((MAXPASS + 1)* sizeof(cl_int));
 
-	
-		for (int y = 0; y<height; y++) {
-			for (int x = 0; x<width; x++) {
-				bufPix[y * width + x] = data[y * width + x];
-			}
-		}
 
-	
+	for (int y = 0; y<height; y++) {
+		for (int x = 0; x<width; x++) {
+			bufPix[y * width + x] = data[y * img->widthStep + x * 3] > 0 ? 1 : 0;
+		}
+	}
+
+	//
 
 	int did = 0;
 	if (argc >= 3) did = atoi(0);
@@ -220,16 +225,13 @@ int main(int argc, char **argv) {
 
 	//
 
-	{
-		int x, y;
-		for (y = 0; y<height; y++) {
-			for (x = 0; x<width; x++) {
-				int rgb = bufLabel[y * width + x] == -1 ? 0 : (bufLabel[y * width + x] * 1103515245 + 12345);
-				//int rgb = bufLabel[y * iw + x] == -1 ? 0 : (bufLabel[y * iw + x]);
-				data[y * img->widthStep + x * 3 + 0] = rgb & 0xff; rgb >>= 8;
-				data[y * img->widthStep + x * 3 + 1] = rgb & 0xff; rgb >>= 8;
-				data[y * img->widthStep + x * 3 + 2] = rgb & 0xff; rgb >>= 8;
-			}
+	for (int y = 0; y<height; y++) {
+		for (int x = 0; x<width; x++) {
+			int rgb = bufLabel[y * width + x] == -1 ? 0 : (bufLabel[y * width + x] * 1103515245 + 12345);
+			//int rgb = bufLabel[y * iw + x] == -1 ? 0 : (bufLabel[y * iw + x]);
+			data[y * img->widthStep + x * 3 + 0] = rgb & 0xff; rgb >>= 8;
+			data[y * img->widthStep + x * 3 + 1] = rgb & 0xff; rgb >>= 8;
+			data[y * img->widthStep + x * 3 + 2] = rgb & 0xff; rgb >>= 8;
 		}
 	}
 
