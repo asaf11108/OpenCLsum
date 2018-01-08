@@ -42,66 +42,29 @@ char* getKernel(string name) {
 	return ans;
 }
 
-cl_device_id simpleGetDevice(int did) {
-	cl_int ret;
-	cl_uint nPlatforms, nTotalDevices = 0;
-	cl_platform_id platformIDs[MAXPLATFORMS];
-	cl_device_id devices[MAXDEVICES];
 
-	clGetPlatformIDs(MAXPLATFORMS, platformIDs, &nPlatforms); // select first platform
-	if (nPlatforms == 0) {
-		//abortf("No platform available");
-	}
-
-	int p;
-	for (p = 0; p<nPlatforms; p++) {
-		cl_uint nDevices;
-		ret = clGetDeviceIDs(platformIDs[p], CL_DEVICE_TYPE_ALL, MAXDEVICES - nTotalDevices, &devices[nTotalDevices], &nDevices);
-		if (ret != CL_SUCCESS) continue;
-		nTotalDevices += nDevices;
-	}
-
-	if (did < 0 || did >= nTotalDevices) {
-		if (did >= 0) fprintf(stderr, "Device %d does not exist\n", did);
-		int i;
-		for (i = 0; i<nTotalDevices; i++) {
-			clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 1024, strbuf, NULL);
-			fprintf(stderr, "Device %d : %s\n", i, strbuf);
-		}
-		exit(-1);
-	}
-
-	clGetDeviceInfo(devices[did], CL_DEVICE_NAME, 1024, strbuf, NULL);
-	printf("%s ", strbuf);
-
-	clGetDeviceInfo(devices[did], CL_DEVICE_VERSION, 1024, strbuf, NULL);
-	printf("%s\n", strbuf);
-
-	return devices[did];
-}
 
 void openclErrorCallback(const char *errinfo, const void *private_info, size_t cb, void *user_data) {
 	fprintf(stderr, "\nError callback called, info = %s\n", errinfo);
 }
-
-cl_context simpleCreateContext(cl_device_id device) {
-	cl_int ret;
-	cl_context hContext;
-
-	hContext = clCreateContext(NULL, 1, &device, openclErrorCallback, NULL, &ret);
-	if (ret != CL_SUCCESS) {
-		//abortf("Could not create context : %d\n", ret);
-	}
-
-	return hContext;
-}
-
 
 #define MAXPASS 10
 
 int main(int argc, char **argv) {
 	int i;
 	char* imStr = "test.png";
+
+	int* value;
+	size_t valueSize;
+	int Max_Compute_Units;
+	cl_platform_id* cpPlatform;       // OpenCL platform
+	cl_uint platformCount;			  //number of platforms
+	cl_device_id device_id;           // device ID
+	cl_context context;               // context
+	cl_command_queue queue;           // command queue
+	cl_program program_red;               // program
+	cl_program program_ser;               // program
+	cl_int err;
 
 	IplImage *img = 0;
 	img = cvLoadImage(imStr, CV_LOAD_IMAGE_COLOR);
@@ -133,33 +96,35 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	//
+	// Bind to platform
+	clGetPlatformIDs(0, NULL, &platformCount);
+	cpPlatform = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
+	err = clGetPlatformIDs(platformCount, cpPlatform, NULL);
 
-	int did = 0;
-	if (argc >= 3) did = atoi(0);
+	// Get ID for the device
+	err = clGetDeviceIDs(cpPlatform[0], CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
 
-	cl_device_id device = simpleGetDevice(did);
-	cl_context context = simpleCreateContext(device);
+	// get devices info
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, 0, NULL, &valueSize);
+	value = (int*)malloc(valueSize);
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_COMPUTE_UNITS, valueSize, value, NULL);
+	Max_Compute_Units = *value;
+	free(value);
+	std::cout << "CL_DEVICE_MAX_COMPUTE_UNITS:" << Max_Compute_Units << endl;
 
-	cl_command_queue queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, NULL);
+	// Create a context  
+	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
+
+	queue = clCreateCommandQueue(context, device_id, 0, &err);
 
 	char *source = getKernel("ccl.cl");
-	cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source, 0, NULL);
+	cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source, NULL, &err);
 	delete[] source;
 
-	cl_int ret = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
-	if (ret != CL_SUCCESS) {
-		fprintf(stderr, "Could not build program : %d\n", ret);
-		if (ret == CL_BUILD_PROGRAM_FAILURE) fprintf(stderr, "CL_BUILD_PROGRAM_FAILURE\n");
-		if (clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 10000, strbuf, NULL) == CL_SUCCESS) {
-			fprintf(stderr, "Build log follows\n");
-			fprintf(stderr, "%s\n", strbuf);
-		}
-		exit(-1);
-	}
+	err |= clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
 
-	cl_kernel kernel_prepare = clCreateKernel(program, "labelxPreprocess_int_int", NULL);
-	cl_kernel kernel_propagate = clCreateKernel(program, "label8xMain_int_int", NULL);
+	cl_kernel kernel_prepare = clCreateKernel(program, "labelxPreprocess_int_int", &err);
+	cl_kernel kernel_propagate = clCreateKernel(program, "label8xMain_int_int", &err);
 
 	// By specifying CL_MEM_COPY_HOST_PTR, device buffers are cleared.
 	cl_mem memPix = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, width * height * sizeof(cl_int), bufPix, NULL);
@@ -242,6 +207,8 @@ int main(int argc, char **argv) {
 	free(bufFlags);
 	free(bufLabel);
 	free(bufPix);
+
+	free(cpPlatform);
 
 	cvShowImage("color", img);
 	cvWaitKey();
