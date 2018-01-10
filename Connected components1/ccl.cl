@@ -7,23 +7,24 @@
 // Naoki Shibata, Shinya Yamamoto: GPGPU-Assisted Subpixel Tracking Method for Fiducial Markers,
 // Journal of Information Processing, Vol.22(2014), No.1, pp.19-28, 2014-01. DOI:10.2197/ipsjjip.22.19
 
-__kernel void labelxPreprocess_int_int(global int *label, global int *pix, global int *flags, int maxpass, int bgc, int iw, int ih) {
+__kernel void preparation(global int *label, global int *pix, global int *flags, int maxpass, int bgc, int iw, int ih) {
   const int x = get_global_id(0), y = get_global_id(1);
   const int p0 = y * iw + x;
 
-  if (y == 0 && x < maxpass+1) {
+  /*if (y == 0 && x < maxpass+1) {
     flags[x] = x == 0 ? 1 : 0;
   }
-
+  */
   if (x >= iw || y >= ih) return;
 
   if (pix[p0] == bgc) { label[p0] = -1; return; }
-  if (y > 0 && pix[p0] == pix[p0-iw]) { label[p0] = p0-iw; return; }
-  if (x > 0 && pix[p0] == pix[p0- 1]) { label[p0] = p0- 1; return; }
-  label[p0] = p0;
+  //if (y > 0 && pix[p0] == pix[p0-iw]) { label[p0] = p0-iw; return; }
+  //if (x > 0 && pix[p0] == pix[p0- 1]) { label[p0] = p0- 1; return; }
+  else
+	label[p0] = p0;
 }
 
-__kernel void label8xMain_int_int(global int *label, global int *pix, global int *flags, int pass, int iw, int ih) {
+__kernel void propagation(global int *label, global int *pix, global int *flags, int pass, int iw, int ih) {
   const int x = get_global_id(0), y = get_global_id(1);
   if (x >= iw || y >= ih) return;
   const int p0 = y * iw + x;
@@ -43,7 +44,7 @@ __kernel void label8xMain_int_int(global int *label, global int *pix, global int
     }
   }
 
-  for(int j=0;j<6;j++) g = label[g];
+  g = label[label[label[g]]];
 
   if (g != og) {
     atomic_min(&label[og], g);
