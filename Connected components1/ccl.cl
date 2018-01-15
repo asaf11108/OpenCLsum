@@ -1,54 +1,48 @@
-// Written by Naoki Shibata shibatch.sf.net@gmail.com 
-// http://ito-lab.naist.jp/~n-sibata/cclarticle/index.xhtml
 
-// This program is in public domain. You can use and modify this code for any purpose without any obligation.
+__kernel void preparation(global int *d_labels, global int *d_pixels, int bgc, int width, int height) {
+	  int x = get_global_id(0);
+	  int y = get_global_id(1);
+	  int cur_pixel = y * width + x;
 
-// This is an example implementation of a connected component labeling algorithm proposed in the following paper.
-// Naoki Shibata, Shinya Yamamoto: GPGPU-Assisted Subpixel Tracking Method for Fiducial Markers,
-// Journal of Information Processing, Vol.22(2014), No.1, pp.19-28, 2014-01. DOI:10.2197/ipsjjip.22.19
+	  if (x >= width || y >= height) return;
 
-__kernel void preparation(global int *label, global int *pix, global int *flags, int maxpass, int bgc, int iw, int ih) {
-  const int x = get_global_id(0), y = get_global_id(1);
-  const int p0 = y * iw + x;
-
-  /*if (y == 0 && x < maxpass+1) {
-    flags[x] = x == 0 ? 1 : 0;
-  }
-  */
-  if (x >= iw || y >= ih) return;
-
-  if (pix[p0] == bgc) { label[p0] = -1; return; }
-  //if (y > 0 && pix[p0] == pix[p0-iw]) { label[p0] = p0-iw; return; }
-  //if (x > 0 && pix[p0] == pix[p0- 1]) { label[p0] = p0- 1; return; }
-  else
-	label[p0] = p0;
+	  if (d_pixels[cur_pixel] == bgc) 
+		d_labels[cur_pixel] = -1;
+	  else
+		d_labels[cur_pixel] = cur_pixel;
 }
 
-__kernel void propagation(global int *label, global int *pix, global int *flags, int pass, int iw, int ih) {
-  const int x = get_global_id(0), y = get_global_id(1);
-  if (x >= iw || y >= ih) return;
-  const int p0 = y * iw + x;
+__kernel void propagation(global int *d_labels, global int *d_pixels, global int *d_passes, int cur_pass, int width, int height) {
+	  int x = get_global_id(0);
+	  int y = get_global_id(1);
 
-  if (flags[pass-1] == 0) return;
+	  if (x >= width || y >= height)
+		return;
 
-  int g = label[p0], og = g;
+	  if (d_passes[cur_pass-1] == 0)
+		return;
 
-  if (g == -1) return;
+	  int cur_pixel = y * width + x;
+	  int g = d_labels[cur_pixel];
+	  int og = g;
 
-  for(int yy=-1;yy<=1;yy++) {
-    for(int xx=-1;xx<=1;xx++) {
-      if (0 <=  x + xx &&  x + xx < iw && 0 <=  y + yy &&  y + yy < ih) {
-	const int p1 = (y + yy) * iw + x + xx, s = label[p1];
-	if (s != -1 && s < g) g = s;
-      }
-    }
-  }
+	  if (g == -1)
+		return;
 
-  g = label[label[label[g]]];
+	  for(int yy=-1;yy<=1;yy++) {
+		for(int xx=-1;xx<=1;xx++) {
+		  if (0 <=  x + xx &&  x + xx < width && 0 <=  y + yy &&  y + yy < height) {
+		const int p1 = (y + yy) * width + x + xx, s = d_labels[p1];
+		if (s != -1 && s < g) g = s;
+		  }
+		}
+	  }
 
-  if (g != og) {
-    atomic_min(&label[og], g);
-    atomic_min(&label[p0], g);
-    flags[pass] = 1;
-  }
+	  g = d_labels[d_labels[d_labels[g]]];
+
+	  if (g != og) {
+		atomic_min(&d_labels[og], g);
+		atomic_min(&d_labels[cur_pixel], g);
+		d_passes[cur_pass] = 1;
+	  }
 }

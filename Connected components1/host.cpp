@@ -148,20 +148,19 @@ int main(int argc, char **argv) {
 	err |= clEnqueueWriteBuffer(queue, d_passes, CL_TRUE, 0, bytes_passes, h_passes, 0, NULL, NULL);
 
 	size_t global_size[2] = { (size_t)(width), (size_t)(height) };
-	int curpass = 0;
+	int bgc = 0;
 
 	clSetKernelArg(kernel_prepare, 0, sizeof(cl_mem), (void *)&d_labels);
 	clSetKernelArg(kernel_prepare, 1, sizeof(cl_mem), (void *)&d_pixels);
-	clSetKernelArg(kernel_prepare, 2, sizeof(cl_mem), (void *)&d_passes);
-	clSetKernelArg(kernel_prepare, 3, sizeof(cl_int), (void *)&MAX_PASS);
-	clSetKernelArg(kernel_prepare, 4, sizeof(cl_int), (void *)&curpass);
-	clSetKernelArg(kernel_prepare, 5, sizeof(cl_int), (int *)&width);
-	clSetKernelArg(kernel_prepare, 6, sizeof(cl_int), (int *)&height);
+	clSetKernelArg(kernel_prepare, 2, sizeof(cl_int), (void *)&bgc);
+	clSetKernelArg(kernel_prepare, 3, sizeof(cl_int), (int *)&width);
+	clSetKernelArg(kernel_prepare, 4, sizeof(cl_int), (int *)&height);
 
 	auto start = std::chrono::system_clock::now();
 	clEnqueueNDRangeKernel(queue, kernel_prepare, 2, NULL, global_size, NULL, 0, NULL, NULL);
 
-	for (int i = 1; i <= MAX_PASS; i++) {
+	int curpass = 0;
+	for (int i = 0; i <= MAX_PASS; i++) {
 		clSetKernelArg(kernel_propagate, 0, sizeof(cl_mem), (void *)&d_labels);
 		clSetKernelArg(kernel_propagate, 1, sizeof(cl_mem), (void *)&d_pixels);
 		clSetKernelArg(kernel_propagate, 2, sizeof(cl_mem), (void *)&d_passes);
