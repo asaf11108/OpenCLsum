@@ -13,6 +13,9 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <chrono>
+#include <ctime>
+#include <map>
 
 char strbuf[10010] = "\0";
 
@@ -42,7 +45,23 @@ char* getKernel(string name) {
 	return ans;
 }
 
+struct COLOR {
+	unsigned char r;
+	unsigned char g;
+	unsigned char b;
+};
 
+COLOR getRandomColor(map<int, COLOR> &mymap, int label){
+	if (mymap.find(label) == mymap.end()) {
+		COLOR color;
+		color.r = rand() % 256;
+		color.g = rand() % 256;
+		color.b = rand() % 256;
+		mymap.insert(pair<int, COLOR>(label, color));
+	}
+	return mymap[label];
+
+}
 
 void openclErrorCallback(const char *errinfo, const void *private_info, size_t cb, void *user_data) {
 	fprintf(stderr, "\nError callback called, info = %s\n", errinfo);
@@ -139,6 +158,7 @@ int main(int argc, char **argv) {
 	clSetKernelArg(kernel_prepare, 5, sizeof(cl_int), (int *)&width);
 	clSetKernelArg(kernel_prepare, 6, sizeof(cl_int), (int *)&height);
 
+	auto start = std::chrono::system_clock::now();
 	clEnqueueNDRangeKernel(queue, kernel_prepare, 2, NULL, global_size, NULL, 0, NULL, NULL);
 
 	for (int i = 1; i <= MAX_PASS; i++) {
@@ -152,7 +172,10 @@ int main(int argc, char **argv) {
 		clEnqueueNDRangeKernel(queue, kernel_propagate, 2, NULL, global_size, NULL, 0, NULL, NULL);
 	}
 	clFinish(queue);
-
+	auto end = std::chrono::system_clock::now();
+	std::chrono::duration<double> elapsed_seconds = end - start;
+	std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+	std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
 	clEnqueueReadBuffer(queue, d_labels, CL_TRUE, 0, width * height * sizeof(cl_int), h_labels, 0, NULL, NULL);
 	clEnqueueReadBuffer(queue, d_passes, CL_TRUE, 0, (MAX_PASS + 1) * sizeof(cl_int), h_passes, 0, NULL, NULL);
 
@@ -165,13 +188,18 @@ int main(int argc, char **argv) {
 	clReleaseCommandQueue(queue);
 	clReleaseContext(context);
 
+	map<int, COLOR> mymap;
+	srand(time(NULL));
+	COLOR background;
+	background.r = 0;
+	background.g = 0;
+	background.b = 0;
 	for (int y = 0; y<height; y++) {
 		for (int x = 0; x<width; x++) {
-			int rgb = h_labels[y * width + x] == -1 ? 0 : (h_labels[y * width + x] * 1103515245 + 12345);
-			//int rgb = bufLabel[y * iw + x] == -1 ? 0 : (bufLabel[y * iw + x]);
-			data[y * img->widthStep + x * 3 + 0] = rgb & 0xff; rgb >>= 8;
-			data[y * img->widthStep + x * 3 + 1] = rgb & 0xff; rgb >>= 8;
-			data[y * img->widthStep + x * 3 + 2] = rgb & 0xff; rgb >>= 8;
+			COLOR rgb = h_labels[y * width + x] == -1 ? background : getRandomColor(mymap, h_labels[y * width + x]);
+			data[y * img->widthStep + x * 3 + 1] = rgb.r;
+			data[y * img->widthStep + x * 3 + 0] = rgb.g;
+			data[y * img->widthStep + x * 3 + 2] = rgb.b;
 		}
 	}
 
@@ -189,5 +217,5 @@ int main(int argc, char **argv) {
 	cvWaitKey();
 
 	exit(0);
-	//time, ccl, random
+	//ccl
 }
