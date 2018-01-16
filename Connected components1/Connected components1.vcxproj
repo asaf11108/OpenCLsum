@@ -186,6 +186,7 @@
     <ClCompile Include="host.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="lots.png" />
     <Image Include="test.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

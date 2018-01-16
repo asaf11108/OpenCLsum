@@ -4,7 +4,8 @@ __kernel void preparation(global int *d_labels, global int *d_pixels, int bgc, i
 	  int y = get_global_id(1);
 	  int cur_pixel = y * width + x;
 
-	  if (x >= width || y >= height) return;
+	  if (x >= width || y >= height)
+		return;
 
 	  if (d_pixels[cur_pixel] == bgc) 
 		d_labels[cur_pixel] = -1;
@@ -12,37 +13,39 @@ __kernel void preparation(global int *d_labels, global int *d_pixels, int bgc, i
 		d_labels[cur_pixel] = cur_pixel;
 }
 
-__kernel void propagation(global int *d_labels, global int *d_pixels, global int *d_passes, int cur_pass, int width, int height) {
+__kernel void propagation(global int *d_labels, global int *d_pixels, global bool *d_passes, int cur_pass, int width, int height) {//bool
 	  int x = get_global_id(0);
 	  int y = get_global_id(1);
 
 	  if (x >= width || y >= height)
 		return;
 
-	  if (d_passes[cur_pass-1] == 0)
+	  if (d_passes[cur_pass-1] == false)
 		return;
 
 	  int cur_pixel = y * width + x;
-	  int g = d_labels[cur_pixel];
-	  int og = g;
-
-	  if (g == -1)
+	  int min_cur_pixel = d_labels[cur_pixel];
+	  if (min_cur_pixel == -1)
 		return;
 
-	  for(int yy=-1;yy<=1;yy++) {
-		for(int xx=-1;xx<=1;xx++) {
-		  if (0 <=  x + xx &&  x + xx < width && 0 <=  y + yy &&  y + yy < height) {
-		const int p1 = (y + yy) * width + x + xx, s = d_labels[p1];
-		if (s != -1 && s < g) g = s;
+	  int old_min_cur_pixel = min_cur_pixel;
+
+	  for(int sub_y = -1; sub_y <= 1; sub_y++) {
+		for(int sub_x = -1; sub_x <= 1; sub_x++) {
+		  if (0 <=  x + sub_x &&  x + sub_x < width && 0 <=  y + sub_y &&  y + sub_y < height) {
+			int p = (y + sub_y) * width + x + sub_x;
+			int min_sub = d_labels[p];
+			if (min_sub != -1 && min_sub < min_cur_pixel)
+				min_cur_pixel = min_sub;
 		  }
 		}
 	  }
+	  //printf("cur_pass: %d", cur_pass);
+	  min_cur_pixel = d_labels[d_labels[d_labels[min_cur_pixel]]];
 
-	  g = d_labels[d_labels[d_labels[g]]];
-
-	  if (g != og) {
-		atomic_min(&d_labels[og], g);
-		atomic_min(&d_labels[cur_pixel], g);
-		d_passes[cur_pass] = 1;
+	  if (min_cur_pixel != old_min_cur_pixel) {
+		atomic_min(&d_labels[old_min_cur_pixel], min_cur_pixel);
+		atomic_min(&d_labels[cur_pixel], min_cur_pixel);
+		d_passes[cur_pass] = true;
 	  }
 }

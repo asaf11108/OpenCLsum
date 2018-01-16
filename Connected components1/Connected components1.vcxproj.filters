@@ -24,5 +24,8 @@
     <Image Include="test.png">
       <Filter>Source Files</Filter>
     </Image>
+    <Image Include="lots.png">
+      <Filter>Source Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

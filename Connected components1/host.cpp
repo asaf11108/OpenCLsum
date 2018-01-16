@@ -69,7 +69,7 @@ void openclErrorCallback(const char *errinfo, const void *private_info, size_t c
 
 int main(int argc, char **argv) {
 	const int MAX_PASS = 10;
-	char* imStr = "100.png";
+	char* imStr = "lots.png";
 
 	int* value;
 	size_t valueSize;
@@ -96,12 +96,14 @@ int main(int argc, char **argv) {
 
 	size_t bytes_pixels = width * height * sizeof(cl_int);
 	size_t bytes_labels = width * height * sizeof(cl_int);
-	size_t bytes_passes = (MAX_PASS + 1) * sizeof(cl_int);
+	size_t bytes_passes = MAX_PASS * sizeof(cl_bool);
 
 	cl_int *h_pixels = (cl_int *)malloc(bytes_pixels);
 	cl_int *h_labels = (cl_int *)malloc(bytes_labels);
-	cl_int *h_passes = (cl_int *)malloc(bytes_passes);
+	cl_bool *h_passes = (cl_bool *)malloc(bytes_passes);
 
+	memset(h_passes, false, MAX_PASS);
+	h_passes[0] = true;
 
 	for (int y = 0; y<height; y++) {
 		for (int x = 0; x<width; x++) {
@@ -159,12 +161,12 @@ int main(int argc, char **argv) {
 	auto start = std::chrono::system_clock::now();
 	clEnqueueNDRangeKernel(queue, kernel_prepare, 2, NULL, global_size, NULL, 0, NULL, NULL);
 
-	int curpass = 0;
-	for (int i = 0; i <= MAX_PASS; i++) {
+	//int curpass = 0;
+	for (int curpass = 1; curpass <= MAX_PASS; curpass++) {
 		clSetKernelArg(kernel_propagate, 0, sizeof(cl_mem), (void *)&d_labels);
 		clSetKernelArg(kernel_propagate, 1, sizeof(cl_mem), (void *)&d_pixels);
 		clSetKernelArg(kernel_propagate, 2, sizeof(cl_mem), (void *)&d_passes);
-		clSetKernelArg(kernel_propagate, 3, sizeof(cl_int), (void *)&MAX_PASS);
+		clSetKernelArg(kernel_propagate, 3, sizeof(cl_int), (void *)&curpass);//MAX_PASS
 		clSetKernelArg(kernel_propagate, 4, sizeof(cl_int), (int *)&width);
 		clSetKernelArg(kernel_propagate, 5, sizeof(cl_int), (int *)&height);
 
@@ -175,8 +177,8 @@ int main(int argc, char **argv) {
 	std::chrono::duration<double> elapsed_seconds = end - start;
 	std::time_t end_time = std::chrono::system_clock::to_time_t(end);
 	std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
-	clEnqueueReadBuffer(queue, d_labels, CL_TRUE, 0, width * height * sizeof(cl_int), h_labels, 0, NULL, NULL);
-	clEnqueueReadBuffer(queue, d_passes, CL_TRUE, 0, (MAX_PASS + 1) * sizeof(cl_int), h_passes, 0, NULL, NULL);
+	clEnqueueReadBuffer(queue, d_labels, CL_TRUE, 0, bytes_labels, h_labels, 0, NULL, NULL);
+	clEnqueueReadBuffer(queue, d_passes, CL_TRUE, 0, bytes_passes, h_passes, 0, NULL, NULL);
 
 	clReleaseMemObject(d_passes);
 	clReleaseMemObject(d_labels);
