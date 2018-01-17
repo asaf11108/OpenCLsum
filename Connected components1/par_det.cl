@@ -1,26 +1,27 @@
 
-__kernel void preparation(global int *d_labels, global int *d_pixels, int bgc, int width, int height) {
+__kernel void preparation(global int *d_pixels, global int *d_labels, int width, int height) {
 	  int x = get_global_id(0);
 	  int y = get_global_id(1);
 	  int cur_pixel = y * width + x;
 
 	  if (x >= width || y >= height)
 		return;
-
-	  if (d_pixels[cur_pixel] == bgc) 
+		
+		//background color is black
+	  if (d_pixels[cur_pixel] == 0) 
 		d_labels[cur_pixel] = -1;
 	  else
 		d_labels[cur_pixel] = cur_pixel;
 }
 
-__kernel void propagation(global int *d_labels, global int *d_pixels, global bool *d_passes, int cur_pass, int width, int height) {//bool
+__kernel void propagation(global int *d_pixels, global int *d_labels, global bool *d_passes, int width, int height, int cur_pass) {
 	  int x = get_global_id(0);
 	  int y = get_global_id(1);
 
 	  if (x >= width || y >= height)
 		return;
 
-	  if (d_passes[cur_pass-1] == false)
+	  if (d_passes[cur_pass] == false)
 		return;
 
 	  int cur_pixel = y * width + x;
@@ -46,6 +47,6 @@ __kernel void propagation(global int *d_labels, global int *d_pixels, global boo
 	  if (min_cur_pixel != old_min_cur_pixel) {
 		atomic_min(&d_labels[old_min_cur_pixel], min_cur_pixel);
 		atomic_min(&d_labels[cur_pixel], min_cur_pixel);
-		d_passes[cur_pass] = true;
+		d_passes[cur_pass+1] = true;
 	  }
 }

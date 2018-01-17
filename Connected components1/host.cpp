@@ -4,27 +4,18 @@
 #include <CL/opencl.h>
 
 #include <stdio.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <math.h>
 #include <time.h>
 #include <string>
 #include <iostream>
-#include <iomanip>
 #include <fstream>
 #include <chrono>
 #include <ctime>
 #include <map>
 
-char strbuf[10010] = "\0";
-
-
-#define MAXPLATFORMS 10
-#define MAXDEVICES 10
-
 using namespace std;
-// OpenCL kernel. Each work item takes care of one element of c
+
 char* getKernel(string name) {
 	string text = "";
 	string line;
@@ -63,13 +54,9 @@ COLOR getRandomColor(map<int, COLOR> &mymap, int label){
 
 }
 
-void openclErrorCallback(const char *errinfo, const void *private_info, size_t cb, void *user_data) {
-	fprintf(stderr, "\nError callback called, info = %s\n", errinfo);
-}
-
 int main(int argc, char **argv) {
 	const int MAX_PASS = 10;
-	char* imStr = "lots.png";
+	char* imStr = "100.png";
 
 	int* value;
 	size_t valueSize;
@@ -132,14 +119,14 @@ int main(int argc, char **argv) {
 
 	queue = clCreateCommandQueue(context, device_id, 0, &err);
 
-	char *source = getKernel("ccl.cl");
+	char *source = getKernel("par_det.cl");
 	program = clCreateProgramWithSource(context, 1, (const char **)&source, NULL, &err);
 	delete[] source;
 
 	err |= clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
 
-	cl_kernel kernel_prepare = clCreateKernel(program, "preparation", &err);
-	cl_kernel kernel_propagate = clCreateKernel(program, "propagation", &err);
+	cl_kernel ker_prepare = clCreateKernel(program, "preparation", &err);
+	cl_kernel ker_propagate = clCreateKernel(program, "propagation", &err);
 
 	cl_mem d_pixels = clCreateBuffer(context, CL_MEM_READ_WRITE, bytes_pixels, NULL, NULL);
 	cl_mem d_labels = clCreateBuffer(context, CL_MEM_READ_WRITE, bytes_labels, NULL, NULL);
@@ -150,27 +137,25 @@ int main(int argc, char **argv) {
 	err |= clEnqueueWriteBuffer(queue, d_passes, CL_TRUE, 0, bytes_passes, h_passes, 0, NULL, NULL);
 
 	size_t global_size[2] = { (size_t)(width), (size_t)(height) };
-	int bgc = 0;
 
-	clSetKernelArg(kernel_prepare, 0, sizeof(cl_mem), (void *)&d_labels);
-	clSetKernelArg(kernel_prepare, 1, sizeof(cl_mem), (void *)&d_pixels);
-	clSetKernelArg(kernel_prepare, 2, sizeof(cl_int), (void *)&bgc);
-	clSetKernelArg(kernel_prepare, 3, sizeof(cl_int), (int *)&width);
-	clSetKernelArg(kernel_prepare, 4, sizeof(cl_int), (int *)&height);
+	clSetKernelArg(ker_prepare, 0, sizeof(cl_mem), (void *)&d_pixels);
+	clSetKernelArg(ker_prepare, 1, sizeof(cl_mem), (void *)&d_labels);
+	clSetKernelArg(ker_prepare, 2, sizeof(cl_int), (int *)&width);
+	clSetKernelArg(ker_prepare, 3, sizeof(cl_int), (int *)&height);
 
 	auto start = std::chrono::system_clock::now();
-	clEnqueueNDRangeKernel(queue, kernel_prepare, 2, NULL, global_size, NULL, 0, NULL, NULL);
+	clEnqueueNDRangeKernel(queue, ker_prepare, 2, NULL, global_size, NULL, 0, NULL, NULL);
 
 	//int curpass = 0;
-	for (int curpass = 1; curpass <= MAX_PASS; curpass++) {
-		clSetKernelArg(kernel_propagate, 0, sizeof(cl_mem), (void *)&d_labels);
-		clSetKernelArg(kernel_propagate, 1, sizeof(cl_mem), (void *)&d_pixels);
-		clSetKernelArg(kernel_propagate, 2, sizeof(cl_mem), (void *)&d_passes);
-		clSetKernelArg(kernel_propagate, 3, sizeof(cl_int), (void *)&curpass);//MAX_PASS
-		clSetKernelArg(kernel_propagate, 4, sizeof(cl_int), (int *)&width);
-		clSetKernelArg(kernel_propagate, 5, sizeof(cl_int), (int *)&height);
+	for (int curpass = 0; curpass < MAX_PASS; curpass++) {
+		clSetKernelArg(ker_propagate, 0, sizeof(cl_mem), (void *)&d_pixels);
+		clSetKernelArg(ker_propagate, 1, sizeof(cl_mem), (void *)&d_labels);
+		clSetKernelArg(ker_propagate, 2, sizeof(cl_mem), (void *)&d_passes);
+		clSetKernelArg(ker_propagate, 3, sizeof(cl_int), (int *)&width);
+		clSetKernelArg(ker_propagate, 4, sizeof(cl_int), (int *)&height);
+		clSetKernelArg(ker_propagate, 5, sizeof(cl_int), (void *)&curpass);//MAX_PASS
 
-		clEnqueueNDRangeKernel(queue, kernel_propagate, 2, NULL, global_size, NULL, 0, NULL, NULL);
+		clEnqueueNDRangeKernel(queue, ker_propagate, 2, NULL, global_size, NULL, 0, NULL, NULL);
 	}
 	clFinish(queue);
 	auto end = std::chrono::system_clock::now();
@@ -180,11 +165,11 @@ int main(int argc, char **argv) {
 	clEnqueueReadBuffer(queue, d_labels, CL_TRUE, 0, bytes_labels, h_labels, 0, NULL, NULL);
 	clEnqueueReadBuffer(queue, d_passes, CL_TRUE, 0, bytes_passes, h_passes, 0, NULL, NULL);
 
-	clReleaseMemObject(d_passes);
-	clReleaseMemObject(d_labels);
 	clReleaseMemObject(d_pixels);
-	clReleaseKernel(kernel_propagate);
-	clReleaseKernel(kernel_prepare);
+	clReleaseMemObject(d_labels);
+	clReleaseMemObject(d_passes);
+	clReleaseKernel(ker_propagate);
+	clReleaseKernel(ker_prepare);
 	clReleaseProgram(program);
 	clReleaseCommandQueue(queue);
 	clReleaseContext(context);
@@ -204,19 +189,18 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	int params[3] = { CV_IMWRITE_PNG_COMPRESSION, 9, 0 };
+	int params[3] = { CV_IMWRITE_PNG_COMPRESSION, 0, 0 };
 
 	cvSaveImage("output.png", img, params);
 
-	free(h_passes);
-	free(h_labels);
 	free(h_pixels);
+	free(h_labels);
+	free(h_passes);
 
 	free(cpPlatform);
 
 	cvShowImage("color", img);
 	cvWaitKey();
 
-	exit(0);
-	//ccl
+	return 0;
 }

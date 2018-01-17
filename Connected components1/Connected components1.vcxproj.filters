@@ -11,11 +11,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Intel_OpenCL_Build_Rules Include="ccl.cl">
-      <Filter>Source Files</Filter>
-    </Intel_OpenCL_Build_Rules>
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="host.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -27,5 +22,10 @@
     <Image Include="lots.png">
       <Filter>Source Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Intel_OpenCL_Build_Rules Include="par_det.cl">
+      <Filter>Source Files</Filter>
+    </Intel_OpenCL_Build_Rules>
   </ItemGroup>
 </Project>
