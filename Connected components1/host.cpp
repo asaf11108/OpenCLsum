@@ -56,7 +56,7 @@ COLOR getRandomColor(map<int, COLOR> &mymap, int label){
 
 int main(int argc, char **argv) {
 	const int MAX_PASS = 10;
-	char* imStr = "100.png";
+	char* imStr = "lots.png";
 
 	int* value;
 	size_t valueSize;
@@ -89,8 +89,10 @@ int main(int argc, char **argv) {
 	cl_int *h_labels = (cl_int *)malloc(bytes_labels);
 	cl_bool *h_passes = (cl_bool *)malloc(bytes_passes);
 
-	memset(h_passes, false, MAX_PASS);
+	//memset(h_passes, false, MAX_PASS);
 	h_passes[0] = true;
+	for (int i=1;i<10;i++)
+		h_passes[i] = false;
 
 	for (int y = 0; y<height; y++) {
 		for (int x = 0; x<width; x++) {
